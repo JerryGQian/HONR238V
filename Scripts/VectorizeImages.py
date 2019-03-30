@@ -6,9 +6,7 @@ import glob
 Converts images and corresponding emotion labels into vectors
 '''
 
-#ipaths = glob.glob("../Data/CK/images/S[0-9]*/[0-9]*/*")
-epaths = glob.glob("../Data/CK/emotions/S[0-9]*/[0-9]*/*")[292:]
-#print(paths)
+epaths = glob.glob("../Data/CK/emotions/S[0-9]*/[0-9]*/*")[290:]
 
 for epath in epaths:
 	
@@ -22,7 +20,7 @@ for epath in epaths:
 	e = open(epath, "r")
 	emotion = e.read().strip()[0]
 
-	if type(pix[10,10]) == "int":
+	if type(pix[10,10]) == int:
 		#copies pixel values into array
 		v = np.empty(shape=(im.size[0] * im.size[1] + 1, 1)) # +1 to fit emotion label at end
 		for x in range(0, im.size[0]):
