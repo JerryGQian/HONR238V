@@ -18,5 +18,12 @@ e = open("../Data/Cohn_Kanade_Facial_Emotions/Emotion/S005/001/S005_001_00000011
 emotion = e.read().strip()[0]
 print(emotion)
 
-a = np.array([1,2,3,4])
+a = np.empty(shape=(im.size[0] * im.size[1], 1))
 np.savetxt('test1.txt', a, fmt='%d')
+
+v = np.empty(shape=(im.size[0] * im.size[1], 1))
+for x in range(0, im.size[0]):
+	for y in range(0, im.size[1]):
+		v[x*im.size[1] + y] = pix[x,y]
+
+np.savetxt('test2.txt', v, fmt='%d')
