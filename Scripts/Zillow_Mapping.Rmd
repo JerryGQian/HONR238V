@@ -9,24 +9,50 @@ output: html_document
 setwd("D:/Documents/Semester4/HONR238V/HONR238V/")
 ```
 
-# Raw cleaned data
+# Raw cleaned state housing price data
 ```{r}
 library(dplyr)
 library(tidyr)
 library(lubridate)
+
 stateHomePriceTimeSeries <- read.csv("D:/Documents/Semester4/HONR238V/HONR238V/Data/Home_Values/State_Zhvi_AllHomes.csv") %>% 
   select(-c("RegionID")) %>%
   gather(date, price, -c(fips,RegionName,SizeRank)) %>%
-  mutate(date=paste(date,".01",sep=''))
+  mutate(date=as.Date(paste(date,".01",sep=''), "X%Y.%m.%d"), year = as.integer(year(date)))
 
-head(stateHomePriceTimeSeries, 55)
+head(stateHomePriceTimeSeries, 100)
+```
 
-stateHomePriceTimeSeries$date <- as.Date(stateHomePriceTimeSeries$date, "X%Y.%m.%d")
+# Raw cleaned state population data
+```{r}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(cdlTools)
 
-head(stateHomePriceTimeSeries, 55)
+stateLandArea <- read.csv("D:/Documents/Semester4/HONR238V/HONR238V/Data/state_land_area.csv") %>%
+  mutate(squareMiles = as.numeric(sub(",", "", as.character(squareMiles), fixed = TRUE)), fips = as.integer(fips(state)))
+
+head(stateLandArea, 1000)
+
+statePopulations <- read.csv("D:/Documents/Semester4/HONR238V/HONR238V/Data/state_populations.csv") %>%
+  mutate(date = as.Date(DATE)) %>%
+  select(-c(DATE)) %>%
+  filter(year(date) >= 1996) %>%
+  gather(state, population, -c(date)) %>%
+  mutate(year = as.integer(year(date)), state = substr(state, 0, 2), fips = as.integer(fips(state)), population = population*1000) %>%
+  select(-c(state)) %>%
+  left_join(stateLandArea, by=c("fips")) %>%
+  mutate(density = population/squareMiles)
+
+head(statePopulations, 1000)
+
 
 
 ```
+
+
+#--------------------------------------------------------------------------------#
 
 ## Static map at chosen date
 ```{r}
@@ -39,6 +65,12 @@ stateHomePriceTimeSeries2000 <- stateHomePriceTimeSeries %>% filter(date == as.D
 plot_usmap(data = stateHomePriceTimeSeries2000, values = "price", lines = "black") + 
   scale_fill_continuous(low = "white", high = "red", name = "Home Price", label = scales::comma) + 
   theme(legend.position = "right") + ggtitle("US Home Prices by State")
+
+statePopulations2000 <- statePopulations %>% filter(year(date) == 2000)
+
+plot_usmap(data = statePopulations2000, values = "density", lines = "dark blue") + 
+  scale_fill_continuous(low = "white", high = "blue", name = "Population", label = scales::comma) + 
+  theme(legend.position = "right") + ggtitle("Population by State")
 ```
 
 
@@ -93,6 +125,23 @@ plot_usmap(data = stateHomePriceTimeSeries_standardized, values = "standardizedP
 
 ```
 
+
+## Animated scatterplot price vs population density
+```{r}
+library(ggplot2)
+library(gganimate)
+#library(usmap)
+
+stateHomePricePopulationDensity <- stateHomePriceTimeSeries %>%
+  left_join(statePopulations %>% select(-c(date)), by=c("fips", "year"))
+#head(stateHomePricePopulationDensity)
+
+ggplot(stateHomePricePopulationDensity, aes(x=density, y=price, color=RegionName)) + geom_point() + geom_smooth(method=lm) +
+   labs(title = 'Date: {frame_time}   Population Density vs Average Home Price by State') + transition_time(date)
+
+```
+
+
 #test animated table
 
 ```{r}
@@ -104,6 +153,8 @@ ggplot(stateHomePriceTimeSeries, aes(x=fips, y=price)) + geom_point() +
    labs(title = 'Year: {frame_time}') + transition_time(date)
 
 ```
+
+
 
 
 
