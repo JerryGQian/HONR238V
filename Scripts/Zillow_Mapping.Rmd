@@ -1,0 +1,110 @@
+---
+title: "Zillow US Mapping"
+author: "Jerry Qian"
+date: "April 5, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+setwd("D:/Documents/Semester4/HONR238V/HONR238V/")
+```
+
+# Raw cleaned data
+```{r}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+stateHomePriceTimeSeries <- read.csv("D:/Documents/Semester4/HONR238V/HONR238V/Data/Home_Values/State_Zhvi_AllHomes.csv") %>% 
+  select(-c("RegionID")) %>%
+  gather(date, price, -c(fips,RegionName,SizeRank)) %>%
+  mutate(date=paste(date,".01",sep=''))
+
+head(stateHomePriceTimeSeries, 55)
+
+stateHomePriceTimeSeries$date <- as.Date(stateHomePriceTimeSeries$date, "X%Y.%m.%d")
+
+head(stateHomePriceTimeSeries, 55)
+
+
+```
+
+## Static map at chosen date
+```{r}
+library(gganimate)
+library(usmap)
+library(ggplot2)
+
+stateHomePriceTimeSeries2000 <- stateHomePriceTimeSeries %>% filter(date == as.Date("2000-04-01"))
+
+plot_usmap(data = stateHomePriceTimeSeries2000, values = "price", lines = "black") + 
+  scale_fill_continuous(low = "white", high = "red", name = "Home Price", label = scales::comma) + 
+  theme(legend.position = "right") + ggtitle("US Home Prices by State")
+```
+
+
+## Animated map raw prices
+```{r}
+
+library(ggplot2)
+library(gganimate)
+library(usmap)
+
+plot_usmap(data = stateHomePriceTimeSeries, values = "price", lines = "black") + 
+  scale_fill_continuous(low = "white", high = "red", name = "Home Price", label = scales::comma) + 
+  theme(legend.position = "right") + 
+  labs(title = 'Date: {frame_time}    Average US Home Prices by State') + 
+  transition_time(date)
+
+
+```
+
+
+# Standardization
+```{r}
+library(dplyr)
+library(lubridate)
+
+
+yearMean_stateHomePriceTimeSeries <- stateHomePriceTimeSeries %>%
+  dplyr::group_by(date) %>% mutate(meanPrice = mean(price, na.rm = TRUE), std = sd(price, na.rm = TRUE)) %>% select(fips,date,meanPrice,std)
+
+stateHomePriceTimeSeries_standardized <- stateHomePriceTimeSeries %>% 
+  left_join(yearMean_stateHomePriceTimeSeries, by=c("fips", "date")) %>%
+  mutate(standardizedPrice = (price - meanPrice)/std)
+
+head(stateHomePriceTimeSeries_standardized, 55)
+
+
+```
+
+## Animated map standardized prices per year
+```{r}
+
+library(ggplot2)
+library(gganimate)
+library(usmap)
+
+plot_usmap(data = stateHomePriceTimeSeries_standardized, values = "standardizedPrice", lines = "black") + 
+  scale_fill_continuous(low = "white", high = "red", name = "Z-Score") + 
+  theme(legend.position = "right") + 
+  labs(title = 'Date: {frame_time}   Standardized (relative) Average US Home Prices by State') + 
+  transition_time(date)
+
+
+```
+
+#test animated table
+
+```{r}
+library(ggplot2)
+library(gganimate)
+library(usmap)
+
+ggplot(stateHomePriceTimeSeries, aes(x=fips, y=price)) + geom_point() + 
+   labs(title = 'Year: {frame_time}') + transition_time(date)
+
+```
+
+
+
+
