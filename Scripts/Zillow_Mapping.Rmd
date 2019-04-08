@@ -16,10 +16,11 @@ library(tidyr)
 library(lubridate)
 
 stateHomePriceTimeSeries <- read.csv("D:/Documents/Semester4/HONR238V/HONR238V/Data/Home_Values/State_Zhvi_AllHomes.csv") %>% 
-  select(-c("RegionID")) %>%
-  gather(date, price, -c(fips,RegionName,SizeRank)) %>%
+  select(-c("RegionID", "SizeRank")) %>%
+  mutate(recessionStart = X2007.11, recessionEnd = X2009.06, recessionDiff = X2009.06-X2007.11) %>%
+  gather(date, price, -c(fips,RegionName,recessionStart,recessionEnd,recessionDiff)) %>%
   mutate(date=as.Date(paste(date,".01",sep=''), "X%Y.%m.%d"), year = as.integer(year(date)))
-
+  
 head(stateHomePriceTimeSeries, 100)
 ```
 
@@ -45,9 +46,13 @@ statePopulations <- read.csv("D:/Documents/Semester4/HONR238V/HONR238V/Data/stat
   left_join(stateLandArea, by=c("fips")) %>%
   mutate(density = population/squareMiles)
 
-head(statePopulations, 1000)
+statePopulationsPrices <- statePopulations %>%
+  select(-c(year)) %>%
+  left_join(stateHomePriceTimeSeries_standardized, by=c("fips", "date"))
 
+head(statePopulationsPrices, 1000)
 
+#State_Zri_AllHomesPlusMultifamily.csv
 
 ```
 
@@ -60,17 +65,22 @@ library(gganimate)
 library(usmap)
 library(ggplot2)
 
-stateHomePriceTimeSeries2000 <- stateHomePriceTimeSeries %>% filter(date == as.Date("2000-04-01"))
+#stateHomePriceTimeSeries2000 <- stateHomePriceTimeSeries %>% filter(date == as.Date("2000-04-01"))
 
-plot_usmap(data = stateHomePriceTimeSeries2000, values = "price", lines = "black") + 
-  scale_fill_continuous(low = "white", high = "red", name = "Home Price", label = scales::comma) + 
-  theme(legend.position = "right") + ggtitle("US Home Prices by State")
+#plot_usmap(data = stateHomePriceTimeSeries2000, values = "price", lines = "black") + 
+  #scale_fill_continuous(low = "white", high = "red", name = "Home Price", label = scales::comma) + 
+  #theme(legend.position = "right") + ggtitle("US Home Prices by State")
 
-statePopulations2000 <- statePopulations %>% filter(year(date) == 2000)
+#statePopulations2000 <- statePopulations %>% filter(year(date) == 2017)
+#plot_usmap(data = statePopulations2000, values = "density", lines = "black") + 
+  #scale_fill_continuous(low = "white", high = "blue", name = "Population Density", label = scales::comma) + 
+  #theme(legend.position = "right", plot.title = element_text(hjust = 0.5)) + ggtitle("Population Density by State") 
 
-plot_usmap(data = statePopulations2000, values = "density", lines = "dark blue") + 
-  scale_fill_continuous(low = "white", high = "blue", name = "Population", label = scales::comma) + 
-  theme(legend.position = "right") + ggtitle("Population by State")
+
+plot_usmap(data = stateHomePriceTimeSeries_standardized, values = "percentDiff", lines = "black") + 
+  scale_fill_gradient2(low = "red", mid="white", high = "green", midpoint=0, name = "Percent Difference") + 
+  theme(legend.position = "right", plot.title = element_text(hjust = 0.5)) + ggtitle("Home Price Percent Difference from Recession by State") 
+
 ```
 
 
@@ -98,13 +108,47 @@ library(lubridate)
 
 
 yearMean_stateHomePriceTimeSeries <- stateHomePriceTimeSeries %>%
-  dplyr::group_by(date) %>% mutate(meanPrice = mean(price, na.rm = TRUE), std = sd(price, na.rm = TRUE)) %>% select(fips,date,meanPrice,std)
+  group_by(date) %>% 
+  mutate(meanPrice = mean(price, na.rm = TRUE), std = sd(price, na.rm = TRUE), meanDiff = mean(recessionDiff, na.rm = TRUE), stdDiff = sd(recessionDiff, na.rm = TRUE)) %>% select(fips,date,meanPrice,std, meanDiff,stdDiff)
 
 stateHomePriceTimeSeries_standardized <- stateHomePriceTimeSeries %>% 
   left_join(yearMean_stateHomePriceTimeSeries, by=c("fips", "date")) %>%
-  mutate(standardizedPrice = (price - meanPrice)/std)
+  mutate(standardizedPrice = (price - meanPrice)/std, percentDiff = (recessionDiff)/recessionStart, year = year(date))
 
 head(stateHomePriceTimeSeries_standardized, 55)
+
+
+```
+
+## Line graph standardized prices per year
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(ggrepel)
+
+
+
+
+ggplot(stateHomePriceTimeSeries_standardized, aes(x=date, y=standardizedPrice, color=RegionName)) + 
+  geom_line() + 
+  theme(legend.position="none", plot.title = element_text(hjust = 0.5)) + 
+  ggtitle("Standardized Average Home Prices by State") + ylab("standardized price") + 
+  geom_text(aes(label = RegionName), data = stateHomePriceTimeSeries_standardized %>% filter(abs(standardizedPrice) > .5) %>% filter(as.character(date)=="2019-02-01"), check_overlap = TRUE)
+
+falling <- stateHomePriceTimeSeries_standardized %>% filter(percentDiff < -.07)
+ggplot(falling , aes(x=date, y=price, color=RegionName)) + 
+  geom_line() + 
+  theme(legend.position="right", plot.title = element_text(hjust = 0)) + 
+  ggtitle("Average Home Prices by States On Decline during Great Recession") + ylab("average price") #+ 
+  #geom_text_repel(aes(label = RegionName), data = falling %>% filter(as.character(date)=="2019-02-01"), check_overlap = FALSE, hjust="outward")
+
+rising <- stateHomePriceTimeSeries_standardized %>% filter(percentDiff > .005)
+ggplot(rising, aes(x=date, y=price, color=RegionName)) + 
+  geom_line() + 
+  theme(legend.position="none", plot.title = element_text(hjust = 0.8)) + 
+  ggtitle("Average Home Prices by States Growing during Great Recession") + ylab("average price") + 
+  geom_text(aes(label = RegionName), data = rising %>% filter(as.character(date)=="2019-02-01"), check_overlap = TRUE)
+
 
 
 ```
@@ -125,6 +169,40 @@ plot_usmap(data = stateHomePriceTimeSeries_standardized, values = "standardizedP
 
 ```
 
+# Standardization of Population
+```{r}
+library(dplyr)
+library(lubridate)
+
+
+yearMean_statePopulations <- statePopulations %>%
+  dplyr::group_by(date) %>% mutate(meanPopulation = mean(population, na.rm = TRUE), std = sd(population, na.rm = TRUE)) %>% select(fips,date,meanPopulation,std)
+
+statePopulations_standardized <- statePopulations %>% 
+  left_join(yearMean_statePopulations, by=c("fips", "date")) %>%
+  mutate(standardizedPopulation = (population - meanPopulation)/std)
+
+head(statePopulations_standardized, 55)
+
+
+```
+
+## Animated map population per year
+```{r}
+
+library(ggplot2)
+library(gganimate)
+library(usmap)
+
+plot_usmap(data = statePopulations, values = "density", lines = "black") + 
+  scale_fill_continuous(low = "white", high = "blue", name = "Residents/square mile") + 
+  theme(legend.position = "right") + 
+  labs(title = 'Date: {frame_time}   Population Density by State') + 
+  transition_time(date)
+
+
+```
+
 
 ## Animated scatterplot price vs population density
 ```{r}
@@ -134,9 +212,10 @@ library(gganimate)
 
 stateHomePricePopulationDensity <- stateHomePriceTimeSeries %>%
   left_join(statePopulations %>% select(-c(date)), by=c("fips", "year"))
-#head(stateHomePricePopulationDensity)
-
-ggplot(stateHomePricePopulationDensity, aes(x=density, y=price, color=RegionName)) + geom_point() + geom_smooth(method=lm) +
+head(stateHomePricePopulationDensity)
+head(statePopulationsPrices)
+#broken
+ggplot(statePopulationsPrices, aes(x=density, y=standardizedPrice, color=RegionName)) + geom_point() + geom_smooth(method=lm) +
    labs(title = 'Date: {frame_time}   Population Density vs Average Home Price by State') + transition_time(date)
 
 ```
